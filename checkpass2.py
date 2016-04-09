@@ -100,7 +100,7 @@ def parseCommandLine(c_vars):
 def readTargetFile(targetFile,cs):
 
     try:    
-        file = open(targetFile, 'r')
+        file = open(targetFile, 'r', errors = 'replace')
     except:
         print('Error opening the target file:',targetFile, file=sys.stderr)
         return -1
