@@ -78,6 +78,9 @@ def parse_command_line(command_line_results = {}):
     ##At the end of a session, save all uncracked passwords to the following file. Used to model multiple cracking sessions
     parser.add_argument('--uncracked_file','-u', help='Save all uncracked passwords at the end of the session to file',metavar='SAVEFILE',required=False,default=None)
     
+    ##Save all cracked passwords to this file in the order they were cracked
+    parser.add_argument('--cracked_file', help='Save all cracked passwords to this file in the order they were cracked',metavar='SAVEFILE',required=False,default=None)
+
     ##Allow the user to manually set the encoding type of the training file
     parser.add_argument('--encoding','-e', help='Encoding format of th training file', metavar='ENCODING', required=False, default=None)
     
@@ -99,14 +102,14 @@ def parse_command_line(command_line_results = {}):
 # Checks the input and sees if it would crack passwords in the
 # target set
 ##################################################################
-def test_cracking_session(cs, encoding = "UTF-8", start_count = 0, start_cracked = 0, max_guesses = None, output = None, verbose = False):
+def test_cracking_session(cs, encoding = "UTF-8", start_count = 0, start_cracked = 0, max_guesses = None, output = None, save_cracked = None, verbose = False):
 
     ##--Initialize the session--##
     cs.num_guesses = start_count
     cs.num_cracked = start_cracked
     cs.num_passwords = cs.num_passwords + start_cracked
 
-    if output != None:
+    if output:
         try:
             output_file = open(output, 'w')
         except Exception as error:
@@ -114,6 +117,13 @@ def test_cracking_session(cs, encoding = "UTF-8", start_count = 0, start_cracked
             return RetType.FILE_IO_ERROR
     else:
         output_file = sys.stdout
+
+    if save_cracked:
+        try:
+            cracked_file = open(save_cracked, 'w')
+        except Exception as error:
+            print("Error opening file. Error message: " + str(error), file=sys.stderr)
+            return RetType.FILE_IO_ERROR
 
     ## I only want to print out 1000 items + the last count to make graphing easier
     step_size = cs.num_passwords * 0.001
@@ -161,10 +171,22 @@ def test_cracking_session(cs, encoding = "UTF-8", start_count = 0, start_cracked
             if cs.num_cracked >= cur_step_limit:
                 print(cs.num_guesses, "\t", cs.num_cracked, "\t", file=output_file)
                 cur_step_limit = step_size + cur_step_limit
+
+                # Because I'm impatient to see the results:
+                output_file.flush()
             
+            if save_cracked:
+                for i in range(0,cs.passwords[guess][0]):
+                    print(f"{cs.num_guesses}\t{guess}", file=cracked_file)
+                cracked_file.flush()
+
             #If all passwords have been cracked, exit
             if cs.num_cracked >= cs.num_passwords:
                 break
+        
+        # If the password is a debug string to print out when rules change
+        if guess.startswith("CHECKPASSDEBUG"):
+            print(cs.num_guesses, "\t", cs.num_cracked, "\t", guess, file=output_file)
 
         ##--If we have made all the maximum number of guesses
         if (max_guesses != None) and (cs.num_guesses >= max_guesses):
@@ -172,8 +194,11 @@ def test_cracking_session(cs, encoding = "UTF-8", start_count = 0, start_cracked
 
     ##--Do final cleanup and printout for this cracking session
     print(cs.num_guesses, "\t", cs.num_cracked, file=output_file)
-    if output != None:
+    if output:
         output_file.close()
+
+    if save_cracked:
+        cracked_file.close()
 
     return RetType.STATUS_OK
 
@@ -212,7 +237,7 @@ def main():
 
     test_cracking_session(cs, encoding = possible_encodings[0], start_count = command_line_results['start_count'], 
         start_cracked = command_line_results['start_cracked'], max_guesses = command_line_results['max_guesses'], 
-        output = command_line_results['output'], verbose = command_line_results['verbose'])
+        output = command_line_results['output'], save_cracked = command_line_results['cracked_file'], verbose = command_line_results['verbose'])
 
     #Print to uncracked file if that was specified
     if (command_line_results['uncracked_file'] != None):
